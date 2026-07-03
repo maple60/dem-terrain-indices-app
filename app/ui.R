@@ -12,6 +12,7 @@ ui <- shiny::fluidPage(
     "
     ))
   ),
+
   shiny::titlePanel("TWI/TPI計算"),
   shiny::sidebarLayout(
     shiny::sidebarPanel(
@@ -77,6 +78,7 @@ ui <- shiny::fluidPage(
     ),
     shiny::mainPanel(
       shiny::tabsetPanel(
+        # DEMプレビュータブの内容を追加 ---
         shiny::tabPanel(
           "DEMプレビュー",
           shiny::br(),
@@ -100,6 +102,8 @@ ui <- shiny::fluidPage(
           ),
           shiny::tableOutput("dem_info")
         ),
+
+        # CRS確認タブの内容を追加 ---
         shiny::tabPanel(
           "CRS確認",
           shiny::br(),
@@ -121,6 +125,8 @@ ui <- shiny::fluidPage(
             )
           )
         ),
+
+        # 結果タブの内容を追加 ---
         shiny::tabPanel(
           "結果",
           shiny::br(),
@@ -167,10 +173,36 @@ ui <- shiny::fluidPage(
           shiny::h4("結果統計"),
           shiny::tableOutput("twi_stats")
         ),
+
+        # ログタブの内容を追加 ---
         shiny::tabPanel(
           "ログ",
           shiny::br(),
           shiny::verbatimTextOutput("status")
+        ),
+
+        # その他の情報タブの内容を追加 ---
+        shiny::tabPanel(
+          "About",
+          shiny::br(),
+          shiny::tags$a(
+            href = "https://github.com/maple60/dem-terrain-indices-app",
+            target = "_blank",
+            rel = "noopener noreferrer",
+            shiny::icon("github"),
+            " GitHub repository"
+          ),
+          shiny::br(),
+          shiny::tags$p(
+            "コードについて詳しく知りたい場合は、",
+            shiny::tags$a(
+              href = "https://maple60.github.io/dem-twi-r/",
+              target = "_blank",
+              rel = "noopener noreferrer",
+              "こちらのノートブック"
+            ),
+            "を参照してください。"
+          )
         )
       )
     )
