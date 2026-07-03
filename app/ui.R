@@ -75,11 +75,6 @@ ui <- shiny::fluidPage(
         class = "btn-primary"
       ),
       shiny::hr(),
-      shiny::selectInput(
-        "result_algorithm",
-        "結果プレビュー",
-        choices = character(0)
-      ),
       shiny::downloadButton("download_twi", "選択中の結果を保存"),
       shiny::checkboxGroupInput(
         "download_algorithms",
@@ -137,6 +132,11 @@ ui <- shiny::fluidPage(
         shiny::tabPanel(
           "結果",
           shiny::br(),
+          shiny::selectInput(
+            "result_algorithm",
+            "結果プレビュー",
+            choices = character(0)
+          ),
           shiny::radioButtons(
             "twi_view_mode",
             "表示",
