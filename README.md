@@ -89,3 +89,10 @@ shiny::runApp("app")
 ## デプロイ時の注意
 
 Posit Connect Cloudなどで`R_CONFIG_ACTIVE=connect_cloud`または`QUARTO_PROFILE=connect_cloud`が設定されている場合、アプリ起動時にLinux向けWhiteboxToolsを一時ディレクトリへ自動セットアップします。通常のローカル実行では、事前にWhiteboxToolsをインストールしておく想定です。
+
+## ライセンス
+
+このリポジトリ内のコードは MIT License の下で公開しています。
+
+本アプリケーションは `shiny`, `terra`, `whitebox` などの外部パッケージ・外部ソフトウェアに依存しています。
+それぞれの依存関係については、各パッケージ・ソフトウェアのライセンスを参照してください。
