@@ -120,7 +120,8 @@ ui <- shiny::fluidPage(
               shiny::tags$a(
                 href = "https://www.gsi.go.jp/LAW/heimencho.html",
                 target = "_blank",
-                rel = "noopener noreferrer"
+                rel = "noopener noreferrer",
+                "平面直角座標系（平成十四年国土交通省告示第九号） | 国土地理院"
               )
             )
           )
