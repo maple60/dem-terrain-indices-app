@@ -73,15 +73,7 @@ ui <- shiny::fluidPage(
         "run",
         "TWI/TPIを計算",
         class = "btn-primary"
-      ),
-      shiny::hr(),
-      shiny::downloadButton("download_twi", "選択中の結果を保存"),
-      shiny::checkboxGroupInput(
-        "download_algorithms",
-        "保存するTWI結果",
-        choices = character(0)
-      ),
-      shiny::downloadButton("download_results", "チェックした結果一式を保存")
+      )
     ),
     shiny::mainPanel(
       shiny::tabsetPanel(
@@ -137,6 +129,13 @@ ui <- shiny::fluidPage(
             "結果プレビュー",
             choices = character(0)
           ),
+          shiny::checkboxGroupInput(
+            "download_algorithms",
+            "保存するTWI結果",
+            choices = character(0)
+          ),
+          shiny::downloadButton("download_results", "チェックした結果一式を保存"),
+          shiny::hr(),
           shiny::radioButtons(
             "twi_view_mode",
             "表示",

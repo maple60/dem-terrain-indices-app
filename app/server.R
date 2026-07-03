@@ -271,8 +271,7 @@ server <- function(input, output, session) {
         ),
         path = result$tpi$tpi,
         value_range = result$tpi_range,
-        colors = tpi_colors(),
-        file_stem = paste0("tpi_", result$tpi$window_cells, "cells")
+        colors = tpi_colors()
       ))
     }
 
@@ -283,8 +282,7 @@ server <- function(input, output, session) {
       label = paste("TWI", item$algorithm),
       path = item$twi,
       value_range = selected_twi_range(),
-      colors = viridis_colors(),
-      file_stem = paste0("twi_", safe_file_stem(item$algorithm))
+      colors = viridis_colors()
     )
   })
 
@@ -387,17 +385,6 @@ server <- function(input, output, session) {
   output$status <- shiny::renderText({
     paste(status_messages(), collapse = "\n")
   })
-
-  output$download_twi <- shiny::downloadHandler(
-    filename = function() {
-      result <- selected_result()
-      paste0(result$file_stem, ".tif")
-    },
-    content = function(file) {
-      result <- selected_result()
-      file.copy(result$path, file, overwrite = TRUE)
-    }
-  )
 
   output$download_results <- shiny::downloadHandler(
     filename = function() {
