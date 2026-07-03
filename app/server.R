@@ -339,49 +339,6 @@ server <- function(input, output, session) {
     spacing = "s"
   )
 
-  output$output_files <- shiny::renderTable(
-    {
-      result <- run_results()
-      shiny::req(result)
-
-      rows <- lapply(result$algorithms, function(item) {
-        data.frame(
-          index = "TWI",
-          result = item$algorithm,
-          flow_accumulation = normalizePath(
-            item$accumulation,
-            winslash = "/",
-            mustWork = FALSE
-          ),
-          raster = normalizePath(item$twi, winslash = "/", mustWork = FALSE),
-          stringsAsFactors = FALSE
-        )
-      })
-
-      if (!is.null(result$tpi) && !is.null(result$tpi$tpi)) {
-        rows[[length(rows) + 1]] <- data.frame(
-          index = "TPI",
-          result = paste0(
-            result$tpi$window_cells,
-            "x",
-            result$tpi$window_cells,
-            "セル"
-          ),
-          flow_accumulation = "",
-          raster = normalizePath(result$tpi$tpi, winslash = "/", mustWork = FALSE),
-          stringsAsFactors = FALSE
-        )
-      }
-
-      table <- do.call(rbind, rows)
-      rownames(table) <- NULL
-      table
-    },
-    striped = TRUE,
-    bordered = TRUE,
-    spacing = "s"
-  )
-
   output$status <- shiny::renderText({
     paste(status_messages(), collapse = "\n")
   })

@@ -124,40 +124,48 @@ ui <- shiny::fluidPage(
         shiny::tabPanel(
           "結果",
           shiny::br(),
-          shiny::selectInput(
-            "result_algorithm",
-            "結果プレビュー",
-            choices = character(0)
-          ),
-          shiny::checkboxGroupInput(
-            "download_algorithms",
-            "保存するTWI結果",
-            choices = character(0)
-          ),
-          shiny::downloadButton("download_results", "チェックした結果一式を保存"),
-          shiny::hr(),
-          shiny::radioButtons(
-            "twi_view_mode",
-            "表示",
-            choices = c(
-              "静的プロット" = "plot",
-              "インタラクティブ地図" = "map"
+          shiny::fluidRow(
+            shiny::column(
+              width = 8,
+              shiny::radioButtons(
+                "twi_view_mode",
+                "表示",
+                choices = c(
+                  "静的プロット" = "plot",
+                  "インタラクティブ地図" = "map"
+                ),
+                selected = "plot",
+                inline = TRUE
+              ),
+              shiny::conditionalPanel(
+                "input.twi_view_mode == 'plot'",
+                shiny::plotOutput("twi_plot", height = 420)
+              ),
+              shiny::conditionalPanel(
+                "input.twi_view_mode == 'map'",
+                shiny::uiOutput("twi_map_ui")
+              )
             ),
-            selected = "plot",
-            inline = TRUE
-          ),
-          shiny::conditionalPanel(
-            "input.twi_view_mode == 'plot'",
-            shiny::plotOutput("twi_plot", height = 420)
-          ),
-          shiny::conditionalPanel(
-            "input.twi_view_mode == 'map'",
-            shiny::uiOutput("twi_map_ui")
+            shiny::column(
+              width = 4,
+              shiny::selectInput(
+                "result_algorithm",
+                "結果プレビュー",
+                choices = character(0)
+              ),
+              shiny::checkboxGroupInput(
+                "download_algorithms",
+                "保存するTWI結果",
+                choices = character(0)
+              ),
+              shiny::downloadButton(
+                "download_results",
+                "チェックした結果一式を保存"
+              )
+            )
           ),
           shiny::h4("結果統計"),
-          shiny::tableOutput("twi_stats"),
-          shiny::h4("出力ファイル"),
-          shiny::tableOutput("output_files")
+          shiny::tableOutput("twi_stats")
         ),
         shiny::tabPanel(
           "ログ",
