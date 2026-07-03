@@ -12,7 +12,7 @@ ui <- shiny::fluidPage(
     "
     ))
   ),
-  shiny::titlePanel("TWI計算"),
+  shiny::titlePanel("TWI/TPI計算"),
   shiny::sidebarLayout(
     shiny::sidebarPanel(
       shiny::radioButtons(
@@ -34,9 +34,16 @@ ui <- shiny::fluidPage(
       ),
       shiny::checkboxGroupInput(
         "algorithms",
-        "流量蓄積アルゴリズム",
+        "TWI流量蓄積アルゴリズム",
         choices = algorithm_choices,
         selected = c("d8", "dinf")
+      ),
+      shiny::numericInput(
+        "tpi_window_cells",
+        "TPI近傍サイズ（セル、奇数）",
+        value = 3,
+        min = 3,
+        step = 2
       ),
       shiny::numericInput(
         "breach_dist",
@@ -53,7 +60,7 @@ ui <- shiny::fluidPage(
       shiny::hr(),
       shiny::checkboxInput(
         "project_dem",
-        "TWI計算前に投影変換する",
+        "TWI/TPI計算前に投影変換する",
         value = FALSE
       ),
       shiny::textInput(
@@ -64,7 +71,7 @@ ui <- shiny::fluidPage(
       ),
       shiny::actionButton(
         "run",
-        "TWIを計算",
+        "TWI/TPIを計算",
         class = "btn-primary"
       ),
       shiny::hr(),
@@ -73,10 +80,10 @@ ui <- shiny::fluidPage(
         "結果プレビュー",
         choices = character(0)
       ),
-      shiny::downloadButton("download_twi", "選択中のTWIを保存"),
+      shiny::downloadButton("download_twi", "選択中の結果を保存"),
       shiny::checkboxGroupInput(
         "download_algorithms",
-        "保存する結果",
+        "保存するTWI結果",
         choices = character(0)
       ),
       shiny::downloadButton("download_results", "チェックした結果一式を保存")
@@ -148,7 +155,7 @@ ui <- shiny::fluidPage(
             "input.twi_view_mode == 'map'",
             shiny::uiOutput("twi_map_ui")
           ),
-          shiny::h4("TWI統計"),
+          shiny::h4("結果統計"),
           shiny::tableOutput("twi_stats"),
           shiny::h4("出力ファイル"),
           shiny::tableOutput("output_files")

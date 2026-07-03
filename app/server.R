@@ -175,21 +175,31 @@ server <- function(input, output, session) {
       )
       return(invisible(NULL))
     }
+    tpi_window <- tryCatch(
+      tpi_window_cells(input$tpi_window_cells),
+      error = function(e) {
+        shiny::showNotification(conditionMessage(e), type = "error")
+        NULL
+      }
+    )
+    if (is.null(tpi_window)) {
+      return(invisible(NULL))
+    }
 
     output_dir <- file.path(
       work_dir,
       paste0("output_", format(Sys.time(), "%Y%m%d_%H%M%S"))
     )
-    total_steps <- 2 + 2 * length(algorithms)
+    total_steps <- 3 + 2 * length(algorithms)
     if (isTRUE(input$project_dem)) {
       total_steps <- total_steps + 1
     }
     step <- 0
 
-    append_status("TWI計算を開始しました。")
+    append_status("TWI/TPI計算を開始しました。")
     tryCatch(
       {
-        result <- shiny::withProgress(message = "TWI計算中", value = 0, {
+        result <- shiny::withProgress(message = "地形指標計算中", value = 0, {
           progress <- function(detail) {
             step <<- step + 1
             shiny::incProgress(1 / total_steps, detail = detail)
@@ -202,6 +212,7 @@ server <- function(input, output, session) {
             output_dir = output_dir,
             breach_dist = input$breach_dist,
             breach_fill = input$breach_fill,
+            tpi_window = tpi_window,
             project_dem = isTRUE(input$project_dem),
             target_epsg = input$target_epsg,
             progress = progress
@@ -209,23 +220,24 @@ server <- function(input, output, session) {
         })
 
         run_results(result)
-        choices <- algorithm_select_choices(names(result$algorithms))
+        choices <- result_preview_choices(result)
         shiny::updateSelectInput(
           session,
           "result_algorithm",
           choices = choices,
-          selected = names(result$algorithms)[1]
+          selected = unname(choices[1])
         )
+        algorithm_choices <- algorithm_select_choices(names(result$algorithms))
         shiny::updateCheckboxGroupInput(
           session,
           "download_algorithms",
-          choices = choices,
+          choices = algorithm_choices,
           selected = names(result$algorithms)
         )
-        append_status("TWI計算が完了しました。")
+        append_status("TWI/TPI計算が完了しました。")
       },
       error = function(e) {
-        append_status(paste("TWI計算に失敗しました:", conditionMessage(e)))
+        append_status(paste("TWI/TPI計算に失敗しました:", conditionMessage(e)))
         shiny::showNotification(
           conditionMessage(e),
           type = "error",
@@ -238,15 +250,42 @@ server <- function(input, output, session) {
   selected_result <- shiny::reactive({
     result <- run_results()
     shiny::req(result)
-    method <- input$result_algorithm
+    result_key <- input$result_algorithm
     if (
-      is.null(method) ||
-        !nzchar(method) ||
-        !method %in% names(result$algorithms)
+      is.null(result_key) ||
+        !nzchar(result_key) ||
+        !result_key %in% unname(result_preview_choices(result))
     ) {
-      method <- names(result$algorithms)[1]
+      result_key <- unname(result_preview_choices(result)[1])
     }
-    result$algorithms[[method]]
+
+    if (identical(result_key, "tpi")) {
+      return(list(
+        index = "TPI",
+        label = paste0(
+          "TPI ",
+          result$tpi$window_cells,
+          "x",
+          result$tpi$window_cells,
+          "セル"
+        ),
+        path = result$tpi$tpi,
+        value_range = result$tpi_range,
+        colors = tpi_colors(),
+        file_stem = paste0("tpi_", result$tpi$window_cells, "cells")
+      ))
+    }
+
+    method <- sub("^twi:", "", result_key)
+    item <- result$algorithms[[method]]
+    list(
+      index = "TWI",
+      label = paste("TWI", item$algorithm),
+      path = item$twi,
+      value_range = selected_twi_range(),
+      colors = viridis_colors(),
+      file_stem = paste0("twi_", safe_file_stem(item$algorithm))
+    )
   })
 
   selected_twi_range <- shiny::reactive({
@@ -264,14 +303,13 @@ server <- function(input, output, session) {
 
   output$twi_plot <- shiny::renderPlot({
     result <- selected_result()
-    twi_range <- selected_twi_range()
-    twi <- terra::rast(result$twi)
+    selected_raster <- terra::rast(result$path)
     terra::plot(
-      twi,
-      col = viridis_colors(),
-      range = twi_range,
+      selected_raster,
+      col = result$colors,
+      range = result$value_range,
       axes = FALSE,
-      main = paste("TWI", result$algorithm)
+      main = result$label
     )
   })
 
@@ -282,13 +320,12 @@ server <- function(input, output, session) {
 
   output$twi_map <- leaflet::renderLeaflet({
     result <- selected_result()
-    twi_range <- selected_twi_range()
-    twi <- terra::rast(result$twi)
+    selected_raster <- terra::rast(result$path)
     leaflet_raster_map(
-      twi,
-      title = paste("TWI", result$algorithm),
-      colors = viridis_colors(),
-      value_range = twi_range
+      selected_raster,
+      title = result$label,
+      colors = result$colors,
+      value_range = result$value_range
     )
   })
 
@@ -297,11 +334,7 @@ server <- function(input, output, session) {
       result <- run_results()
       shiny::req(result)
 
-      if (!is.null(result$twi_stats)) {
-        return(result$twi_stats)
-      }
-
-      twi_statistics_table(result$algorithms)
+      terrain_statistics_table(result)
     },
     striped = TRUE,
     bordered = TRUE,
@@ -315,18 +348,36 @@ server <- function(input, output, session) {
 
       rows <- lapply(result$algorithms, function(item) {
         data.frame(
-          algorithm = item$algorithm,
+          index = "TWI",
+          result = item$algorithm,
           flow_accumulation = normalizePath(
             item$accumulation,
             winslash = "/",
             mustWork = FALSE
           ),
-          twi = normalizePath(item$twi, winslash = "/", mustWork = FALSE),
+          raster = normalizePath(item$twi, winslash = "/", mustWork = FALSE),
           stringsAsFactors = FALSE
         )
       })
 
-      do.call(rbind, rows)
+      if (!is.null(result$tpi) && !is.null(result$tpi$tpi)) {
+        rows[[length(rows) + 1]] <- data.frame(
+          index = "TPI",
+          result = paste0(
+            result$tpi$window_cells,
+            "x",
+            result$tpi$window_cells,
+            "セル"
+          ),
+          flow_accumulation = "",
+          raster = normalizePath(result$tpi$tpi, winslash = "/", mustWork = FALSE),
+          stringsAsFactors = FALSE
+        )
+      }
+
+      table <- do.call(rbind, rows)
+      rownames(table) <- NULL
+      table
     },
     striped = TRUE,
     bordered = TRUE,
@@ -340,15 +391,11 @@ server <- function(input, output, session) {
   output$download_twi <- shiny::downloadHandler(
     filename = function() {
       result <- selected_result()
-      paste0(
-        "twi_",
-        tolower(gsub("[^A-Za-z0-9]+", "_", result$algorithm)),
-        ".tif"
-      )
+      paste0(result$file_stem, ".tif")
     },
     content = function(file) {
       result <- selected_result()
-      file.copy(result$twi, file, overwrite = TRUE)
+      file.copy(result$path, file, overwrite = TRUE)
     }
   )
 
@@ -358,7 +405,7 @@ server <- function(input, output, session) {
       shiny::req(result)
 
       paste0(
-        "twi_results_",
+        "terrain_indices_",
         format(result$finished_at, "%Y%m%d_%H%M%S"),
         ".zip"
       )

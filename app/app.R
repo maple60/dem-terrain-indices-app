@@ -1,5 +1,5 @@
 # Keep this file as a small entry point. The app logic lives in the
-# neighbouring files so UI, server logic, and TWI processing can be edited
+# neighbouring files so UI, server logic, and terrain-index processing can be edited
 # independently.
 app_dir <- if (file.exists("global.R")) "." else "app"
 

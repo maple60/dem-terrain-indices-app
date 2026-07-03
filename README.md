@@ -1,6 +1,6 @@
 # DEM Terrain Indices App
 
-DEM GeoTIFFから地形湿潤指数（TWI: Topographic Wetness Index）を計算するShinyアプリです。入力DEMの確認、必要に応じた投影変換、複数の流量蓄積アルゴリズムによるTWI計算、結果のプレビューとダウンロードをブラウザ上で行えます。
+DEM GeoTIFFから地形湿潤指数（TWI: Topographic Wetness Index）と地形位置指数（TPI: Topographic Position Index）を計算するShinyアプリです。入力DEMの確認、必要に応じた投影変換、複数の流量蓄積アルゴリズムによるTWI計算、セル近傍によるTPI計算、結果のプレビューとダウンロードをブラウザ上で行えます。
 
 ## 主な機能
 
@@ -9,15 +9,16 @@ DEM GeoTIFFから地形湿潤指数（TWI: Topographic Wetness Index）を計算
 - 緯度経度DEMに対する投影変換候補の表示
 - JGD2011平面直角座標系とUTMの候補EPSGコード表示
 - D8、D-infinity、FD8による流量蓄積とTWI計算
-- DEMとTWIの静的プロットおよびLeaflet地図プレビュー
-- TWI GeoTIFF単体、または計算条件・統計量・中間ファイルを含むZIPのダウンロード
+- セル近傍サイズを指定したTPI計算
+- DEM、TWI、TPIの静的プロットおよびLeaflet地図プレビュー
+- 選択中の結果GeoTIFF単体、または計算条件・統計量・中間ファイルを含むZIPのダウンロード
 
 ## 構成
 
 ```text
 app/
   app.R        # Shinyアプリのエントリーポイント
-  global.R     # 共有関数、TWI計算、WhiteboxTools初期化
+  global.R     # 共有関数、地形指標計算、WhiteboxTools初期化
   ui.R         # UI定義
   server.R     # Shinyサーバーロジック
   manifest.json
@@ -59,9 +60,9 @@ shiny::runApp("app")
 
 - `.tif`または`.tiff`形式の単一レイヤGeoTIFF
 - CRSが定義されていること
-- TWI計算時は投影座標系であること
+- TWI/TPI計算時は投影座標系であること
 
-入力DEMが緯度経度座標系の場合、アプリの「CRS確認」タブで候補EPSGを確認し、「TWI計算前に投影変換する」を有効にしてから計算できます。
+入力DEMが緯度経度座標系の場合、アプリの「CRS確認」タブで候補EPSGを確認し、「TWI/TPI計算前に投影変換する」を有効にしてから計算できます。
 
 ## 計算の流れ
 
@@ -71,17 +72,19 @@ shiny::runApp("app")
 4. 勾配ラスタを作成します。
 5. 選択したアルゴリズムで流量蓄積を計算します。
 6. 流量蓄積と勾配からTWIを計算します。
+7. 解析用DEMから、指定したセル近傍の平均標高との差としてTPIを計算します。
 
 ## 出力
 
-結果タブでは、選択中のTWIをGeoTIFFとして保存できます。複数アルゴリズムの結果をまとめて保存する場合、ZIPには以下が含まれます。
+結果タブでは、選択中のTWIまたはTPIをGeoTIFFとして保存できます。複数アルゴリズムの結果をまとめて保存する場合、ZIPには以下が含まれます。
 
 - 投影変換後DEM（投影変換した場合）
 - 凹地処理後DEM
 - 勾配ラスタ
 - 各アルゴリズムの流量蓄積ラスタ
 - 各アルゴリズムのTWIラスタ
-- 計算条件、TWI統計量、出力ファイル一覧のCSV
+- TPIラスタ
+- 計算条件、TWI/TPI統計量、出力ファイル一覧のCSV
 
 ## デプロイ時の注意
 

@@ -4,7 +4,7 @@ library(leaflet)
 # Allow users to upload DEM files up to 1 GB.
 options(shiny.maxRequestSize = 1024 * 1024^2)
 
-# Packages used by the TWI workflow and interactive map previews.
+# Packages used by the terrain-index workflow and interactive map previews.
 required_packages <- c("terra", "whitebox", "leaflet")
 
 # Keep interactive map rasters small enough for quick browser rendering. The
@@ -13,6 +13,10 @@ leaflet_preview_max_cells <- 250000
 
 viridis_colors <- function(n = 256) {
   grDevices::hcl.colors(n, palette = "Viridis")
+}
+
+tpi_colors <- function(n = 256) {
+  grDevices::colorRampPalette(c("#2c7bb6", "#f7f7f7", "#d7191c"))(n)
 }
 
 # Values are WhiteboxTools method identifiers; names are displayed in the UI.
@@ -169,6 +173,16 @@ normalize_value_range <- function(value_range) {
   value_range
 }
 
+symmetric_value_range <- function(value_range) {
+  value_range <- normalize_value_range(value_range)
+  limit <- max(abs(value_range), na.rm = TRUE)
+  if (!is.finite(limit) || limit == 0) {
+    return(c(-0.5, 0.5))
+  }
+
+  c(-limit, limit)
+}
+
 raster_value_range <- function(r) {
   value_range <- tryCatch(
     as.numeric(terra::global(r, range, na.rm = TRUE)[1, ]),
@@ -200,6 +214,20 @@ raster_paths_value_range <- function(paths) {
   }
 
   normalize_value_range(c(min(mins), max(maxs)))
+}
+
+tpi_window_cells <- function(window_cells) {
+  window_cells <- suppressWarnings(as.numeric(window_cells[1]))
+  if (
+    !is.finite(window_cells) ||
+      window_cells != floor(window_cells) ||
+      window_cells < 3 ||
+      window_cells %% 2 == 0
+  ) {
+    stop("TPI近傍サイズは3以上の奇数セル数で指定してください。", call. = FALSE)
+  }
+
+  as.integer(window_cells)
 }
 
 raster_statistics <- function(path) {
@@ -246,6 +274,26 @@ raster_statistics <- function(path) {
   )
 }
 
+tpi_statistics_table <- function(tpi_result) {
+  if (is.null(tpi_result) || is.null(tpi_result$tpi)) {
+    return(data.frame())
+  }
+
+  stats <- raster_statistics(tpi_result$tpi)
+  data.frame(
+    window_cells = tpi_result$window_cells,
+    min = signif(stats[["min"]], 6),
+    q25 = signif(stats[["q25"]], 6),
+    median = signif(stats[["median"]], 6),
+    q75 = signif(stats[["q75"]], 6),
+    max = signif(stats[["max"]], 6),
+    NA_cells = stats[["NA_cells"]],
+    NA_percent = signif(stats[["NA_percent"]], 4),
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+}
+
 twi_statistics_table <- function(results) {
   if (length(results) == 0) {
     return(data.frame())
@@ -270,6 +318,65 @@ twi_statistics_table <- function(results) {
   table <- do.call(rbind, rows)
   rownames(table) <- NULL
   table
+}
+
+terrain_statistics_table <- function(result) {
+  rows <- list()
+
+  if (!is.null(result$twi_stats) && nrow(result$twi_stats) > 0) {
+    twi_stats <- result$twi_stats
+  } else {
+    twi_stats <- twi_statistics_table(result$algorithms)
+  }
+  if (nrow(twi_stats) > 0) {
+    rows[[length(rows) + 1]] <- data.frame(
+      index = "TWI",
+      result = twi_stats$algorithm,
+      window_cells = "",
+      twi_stats[, setdiff(names(twi_stats), "algorithm"), drop = FALSE],
+      stringsAsFactors = FALSE,
+      check.names = FALSE
+    )
+  }
+
+  tpi_stats <- tpi_statistics_table(result$tpi)
+  if (nrow(tpi_stats) > 0) {
+    rows[[length(rows) + 1]] <- data.frame(
+      index = "TPI",
+      result = "TPI",
+      tpi_stats,
+      stringsAsFactors = FALSE,
+      check.names = FALSE
+    )
+  }
+
+  if (length(rows) == 0) {
+    return(data.frame())
+  }
+
+  table <- do.call(rbind, rows)
+  rownames(table) <- NULL
+  table
+}
+
+result_preview_choices <- function(result) {
+  choices <- stats::setNames(
+    paste0("twi:", names(result$algorithms)),
+    paste("TWI", algorithm_labels(names(result$algorithms)))
+  )
+
+  if (!is.null(result$tpi) && !is.null(result$tpi$tpi)) {
+    tpi_label <- paste0(
+      "TPI (",
+      result$tpi$window_cells,
+      "x",
+      result$tpi$window_cells,
+      "セル)"
+    )
+    choices <- c(choices, stats::setNames("tpi", tpi_label))
+  }
+
+  choices
 }
 
 safe_file_stem <- function(x) {
@@ -313,13 +420,16 @@ result_conditions_table <- function(result, selected_methods) {
       "all_calculated_algorithms",
       "breach_dist",
       "breach_fill",
+      "tpi_window_cells",
       "project_dem",
       "target_epsg",
       "input_dem",
       "analysis_dem",
       "output_dir",
       "twi_range_min",
-      "twi_range_max"
+      "twi_range_max",
+      "tpi_range_min",
+      "tpi_range_max"
     ),
     value = c(
       format_condition_value(result$finished_at),
@@ -328,13 +438,16 @@ result_conditions_table <- function(result, selected_methods) {
       format_condition_value(parameters$algorithms),
       format_condition_value(parameters$breach_dist),
       format_condition_value(parameters$breach_fill),
+      format_condition_value(parameters$tpi_window_cells),
       format_condition_value(parameters$project_dem),
       format_condition_value(parameters$target_epsg),
       normalizePath(result$input_dem, winslash = "/", mustWork = FALSE),
       normalizePath(result$analysis_dem, winslash = "/", mustWork = FALSE),
       normalizePath(result$output_dir, winslash = "/", mustWork = FALSE),
       format_condition_value(result$twi_range[1]),
-      format_condition_value(result$twi_range[2])
+      format_condition_value(result$twi_range[2]),
+      format_condition_value(result$tpi_range[1]),
+      format_condition_value(result$tpi_range[2])
     ),
     stringsAsFactors = FALSE
   )
@@ -386,6 +499,13 @@ create_twi_results_zip <- function(result, methods, zipfile) {
     na = "",
     fileEncoding = "UTF-8"
   )
+  write.csv(
+    tpi_statistics_table(result$tpi),
+    file.path(metadata_dir, "tpi_statistics.csv"),
+    row.names = FALSE,
+    na = "",
+    fileEncoding = "UTF-8"
+  )
 
   file_records <- list()
   add_record <- function(record, file_type, method = "", algorithm = "") {
@@ -412,6 +532,18 @@ create_twi_results_zip <- function(result, methods, zipfile) {
     copy_bundle_file(result$slope, bundle_dir, "shared/dem_breached_slope.tif"),
     "slope"
   )
+  if (!is.null(result$tpi) && !is.null(result$tpi$tpi)) {
+    add_record(
+      copy_bundle_file(
+        result$tpi$tpi,
+        bundle_dir,
+        file.path("indices", paste0("tpi_", result$tpi$window_cells, "cells.tif"))
+      ),
+      "tpi",
+      "",
+      "TPI"
+    )
+  }
 
   for (method in methods) {
     item <- result$algorithms[[method]]
@@ -1021,12 +1153,36 @@ run_flow_accumulation <- function(method, breached_path, output_path) {
   }
 }
 
+write_tpi_raster <- function(dem_path, output_path, window_cells) {
+  window_cells <- tpi_window_cells(window_cells)
+  dem <- terra::rast(dem_path)
+
+  weights <- matrix(1, nrow = window_cells, ncol = window_cells)
+  center <- (window_cells + 1) / 2
+  weights[center, center] <- NA
+
+  neighbor_mean <- terra::focal(
+    dem,
+    w = weights,
+    fun = "mean",
+    na.rm = TRUE,
+    filename = "",
+    overwrite = TRUE
+  )
+  tpi <- dem - neighbor_mean
+  names(tpi) <- paste0("TPI_", window_cells, "cells")
+  terra::writeRaster(tpi, output_path, overwrite = TRUE)
+
+  output_path
+}
+
 run_twi_workflow <- function(
   dem_path,
   algorithms,
   output_dir,
   breach_dist,
   breach_fill,
+  tpi_window = 3,
   project_dem = FALSE,
   target_epsg = NULL,
   progress = NULL
@@ -1054,10 +1210,15 @@ run_twi_workflow <- function(
   }
 
   validate_dem(dem)
+  tpi_window <- tpi_window_cells(tpi_window)
   check_whitebox()
 
   breached_path <- file.path(output_dir, "dem_breached.tif")
   slope_path <- file.path(output_dir, "dem_breached_slope.tif")
+  tpi_path <- file.path(output_dir, paste0("tpi_", tpi_window, "cells.tif"))
+
+  progress(paste0("TPI: ", tpi_window, "x", tpi_window, "セル"))
+  write_tpi_raster(analysis_dem_path, tpi_path, tpi_window)
 
   # WhiteboxTools first removes depressions, then derives slope and flow
   # accumulation rasters used by the wetness index calculation.
@@ -1111,6 +1272,7 @@ run_twi_workflow <- function(
       algorithm_labels = algorithm_labels(algorithms),
       breach_dist = breach_dist,
       breach_fill = breach_fill,
+      tpi_window_cells = tpi_window,
       project_dem = isTRUE(project_dem),
       target_epsg = target_epsg_normalized
     ),
@@ -1118,6 +1280,12 @@ run_twi_workflow <- function(
       vapply(results, function(item) item$twi, character(1))
     ),
     twi_stats = twi_statistics_table(results),
+    tpi = list(
+      index = "TPI",
+      window_cells = tpi_window,
+      tpi = tpi_path
+    ),
+    tpi_range = symmetric_value_range(raster_value_range(terra::rast(tpi_path))),
     algorithms = results,
     output_dir = output_dir,
     finished_at = Sys.time()
