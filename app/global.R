@@ -16,7 +16,7 @@ viridis_colors <- function(n = 256) {
 }
 
 tpi_colors <- function(n = 256) {
-  grDevices::colorRampPalette(c("#2c7bb6", "#f7f7f7", "#d7191c"))(n)
+  viridis_colors(n)
 }
 
 # Values are WhiteboxTools method identifiers; names are displayed in the UI.
@@ -366,14 +366,30 @@ result_preview_choices <- function(result) {
   )
 
   if (!is.null(result$tpi) && !is.null(result$tpi$tpi)) {
-    tpi_label <- paste0(
-      "TPI (",
-      result$tpi$window_cells,
-      "x",
-      result$tpi$window_cells,
-      "セル)"
-    )
-    choices <- c(choices, stats::setNames("tpi", tpi_label))
+    choices <- c(choices, stats::setNames("tpi", tpi_result_label(result$tpi)))
+  }
+
+  choices
+}
+
+tpi_result_label <- function(tpi_result) {
+  paste0(
+    "TPI (",
+    tpi_result$window_cells,
+    "x",
+    tpi_result$window_cells,
+    "セル)"
+  )
+}
+
+download_result_choices <- function(result) {
+  choices <- stats::setNames(
+    names(result$algorithms),
+    paste("TWI", algorithm_labels(names(result$algorithms)))
+  )
+
+  if (!is.null(result$tpi) && !is.null(result$tpi$tpi)) {
+    choices <- c(choices, stats::setNames("tpi", tpi_result_label(result$tpi)))
   }
 
   choices
@@ -472,9 +488,13 @@ copy_bundle_file <- function(source_path, bundle_dir, relative_path) {
   )
 }
 
-create_twi_results_zip <- function(result, methods, zipfile) {
-  methods <- intersect(methods, names(result$algorithms))
-  if (length(methods) == 0) {
+create_twi_results_zip <- function(result, selections, zipfile) {
+  methods <- intersect(selections, names(result$algorithms))
+  include_tpi <- "tpi" %in% selections &&
+    !is.null(result$tpi) &&
+    !is.null(result$tpi$tpi)
+
+  if (length(methods) == 0 && !include_tpi) {
     stop("保存する結果を1つ以上選んでください。", call. = FALSE)
   }
 
@@ -500,7 +520,7 @@ create_twi_results_zip <- function(result, methods, zipfile) {
     fileEncoding = "UTF-8"
   )
   write.csv(
-    tpi_statistics_table(result$tpi),
+    tpi_statistics_table(if (include_tpi) result$tpi else NULL),
     file.path(metadata_dir, "tpi_statistics.csv"),
     row.names = FALSE,
     na = "",
@@ -532,7 +552,7 @@ create_twi_results_zip <- function(result, methods, zipfile) {
     copy_bundle_file(result$slope, bundle_dir, "shared/dem_breached_slope.tif"),
     "slope"
   )
-  if (!is.null(result$tpi) && !is.null(result$tpi$tpi)) {
+  if (include_tpi) {
     add_record(
       copy_bundle_file(
         result$tpi$tpi,
@@ -662,7 +682,21 @@ add_reset_view_control <- function(map, bounds) {
   htmlwidgets::onRender(map, js)
 }
 
-leaflet_raster_map <- function(r, title, colors, value_range = NULL) {
+hillshade_raster <- function(r) {
+  slope <- terra::terrain(r, v = "slope", unit = "radians")
+  aspect <- terra::terrain(r, v = "aspect", unit = "radians")
+  terra::shade(slope, aspect, angle = 40, direction = 315)
+}
+
+leaflet_layered_raster_map <- function(
+  r,
+  title,
+  colors,
+  value_range = NULL,
+  main_group = title,
+  main_opacity = 0.85,
+  hillshade_source = r
+) {
   check_packages(c("terra", "leaflet"))
 
   preview <- downsample_raster_for_leaflet(r)
@@ -678,59 +712,6 @@ leaflet_raster_map <- function(r, title, colors, value_range = NULL) {
   )
 
   map <- leaflet::leaflet(options = leaflet::leafletOptions(preferCanvas = TRUE))
-  map <- leaflet::addProviderTiles(
-    map,
-    provider = leaflet::providers$CartoDB.Positron
-  )
-  map <- leaflet::addRasterImage(
-    map,
-    preview,
-    colors = palette,
-    opacity = 0.85,
-    project = TRUE,
-    maxBytes = 8 * 1024 * 1024
-  )
-  map <- leaflet::addLegend(
-    map,
-    position = "bottomright",
-    pal = palette,
-    values = value_range,
-    title = title
-  )
-
-  bounds <- tryCatch(raster_lonlat_bounds(preview), error = function(e) NULL)
-  if (!is.null(bounds) && all(is.finite(bounds))) {
-    map <- leaflet::fitBounds(
-      map,
-      lng1 = bounds[["xmin"]],
-      lat1 = bounds[["ymin"]],
-      lng2 = bounds[["xmax"]],
-      lat2 = bounds[["ymax"]]
-    )
-    map <- add_reset_view_control(map, bounds)
-  }
-
-  map
-}
-
-hillshade_raster <- function(r) {
-  slope <- terra::terrain(r, v = "slope", unit = "radians")
-  aspect <- terra::terrain(r, v = "aspect", unit = "radians")
-  terra::shade(slope, aspect, angle = 40, direction = 315)
-}
-
-leaflet_dem_map <- function(r) {
-  check_packages(c("terra", "leaflet"))
-
-  preview <- downsample_raster_for_leaflet(r)
-  dem_range <- raster_value_range(preview)
-  dem_palette <- leaflet::colorNumeric(
-    palette = viridis_colors(),
-    domain = dem_range,
-    na.color = "transparent"
-  )
-
-  map <- leaflet::leaflet(options = leaflet::leafletOptions(preferCanvas = TRUE))
   map <- leaflet::addTiles(map, group = "OSM")
   map <- leaflet::addProviderTiles(
     map,
@@ -738,8 +719,16 @@ leaflet_dem_map <- function(r) {
     group = "航空写真"
   )
 
-  hillshade <- tryCatch(hillshade_raster(preview), error = function(e) NULL)
-  overlay_groups <- "DEM"
+  hillshade <- NULL
+  if (!is.null(hillshade_source)) {
+    hillshade_preview <- downsample_raster_for_leaflet(hillshade_source)
+    hillshade <- tryCatch(
+      hillshade_raster(hillshade_preview),
+      error = function(e) NULL
+    )
+  }
+
+  overlay_groups <- main_group
   if (!is.null(hillshade)) {
     hillshade_palette <- leaflet::colorNumeric(
       palette = grDevices::gray.colors(256, start = 0.1, end = 1),
@@ -761,18 +750,18 @@ leaflet_dem_map <- function(r) {
   map <- leaflet::addRasterImage(
     map,
     preview,
-    colors = dem_palette,
-    opacity = 0.70,
+    colors = palette,
+    opacity = main_opacity,
     project = TRUE,
     maxBytes = 8 * 1024 * 1024,
-    group = "DEM"
+    group = main_group
   )
   map <- leaflet::addLegend(
     map,
     position = "bottomright",
-    pal = dem_palette,
-    values = dem_range,
-    title = "DEM"
+    pal = palette,
+    values = value_range,
+    title = title
   )
   map <- leaflet::addLayersControl(
     map,
@@ -798,6 +787,35 @@ leaflet_dem_map <- function(r) {
   }
 
   map
+}
+
+leaflet_raster_map <- function(
+  r,
+  title,
+  colors,
+  value_range = NULL,
+  hillshade_source = NULL
+) {
+  leaflet_layered_raster_map(
+    r,
+    title = title,
+    colors = colors,
+    value_range = value_range,
+    main_group = title,
+    main_opacity = 0.85,
+    hillshade_source = hillshade_source
+  )
+}
+
+leaflet_dem_map <- function(r) {
+  leaflet_layered_raster_map(
+    r,
+    title = "DEM",
+    colors = viridis_colors(),
+    main_group = "DEM",
+    main_opacity = 0.70,
+    hillshade_source = r
+  )
 }
 
 copy_uploaded_dem <- function(upload, work_dir) {

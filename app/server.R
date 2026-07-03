@@ -227,12 +227,12 @@ server <- function(input, output, session) {
           choices = choices,
           selected = unname(choices[1])
         )
-        algorithm_choices <- algorithm_select_choices(names(result$algorithms))
+        download_choices <- download_result_choices(result)
         shiny::updateCheckboxGroupInput(
           session,
           "download_algorithms",
-          choices = algorithm_choices,
-          selected = names(result$algorithms)
+          choices = download_choices,
+          selected = unname(download_choices)
         )
         append_status("TWI/TPI計算が完了しました。")
       },
@@ -318,12 +318,22 @@ server <- function(input, output, session) {
 
   output$twi_map <- leaflet::renderLeaflet({
     result <- selected_result()
+    workflow_result <- run_results()
+    shiny::req(workflow_result)
     selected_raster <- terra::rast(result$path)
+    hillshade_source <- NULL
+    if (
+      !is.null(workflow_result$analysis_dem) &&
+        file.exists(workflow_result$analysis_dem)
+    ) {
+      hillshade_source <- terra::rast(workflow_result$analysis_dem)
+    }
     leaflet_raster_map(
       selected_raster,
       title = result$label,
       colors = result$colors,
-      value_range = result$value_range
+      value_range = result$value_range,
+      hillshade_source = hillshade_source
     )
   })
 
@@ -358,8 +368,8 @@ server <- function(input, output, session) {
       result <- run_results()
       shiny::req(result)
 
-      methods <- input$download_algorithms
-      if (is.null(methods) || length(methods) == 0) {
+      selections <- input$download_algorithms
+      if (is.null(selections) || length(selections) == 0) {
         shiny::showNotification(
           "保存する結果を1つ以上選んでください。",
           type = "error"
@@ -367,7 +377,7 @@ server <- function(input, output, session) {
         stop("保存する結果を1つ以上選んでください。", call. = FALSE)
       }
 
-      create_twi_results_zip(result, methods, file)
+      create_twi_results_zip(result, selections, file)
     },
     contentType = "application/zip"
   )

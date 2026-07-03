@@ -155,7 +155,7 @@ ui <- shiny::fluidPage(
               ),
               shiny::checkboxGroupInput(
                 "download_algorithms",
-                "保存するTWI結果",
+                "保存するTWI/TPI結果",
                 choices = character(0)
               ),
               shiny::downloadButton(
