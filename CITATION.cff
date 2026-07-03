@@ -1,0 +1,8 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+- family-names: "Korai"
+  given-names: "Kaede"
+  orcid: "https://orcid.org/0009-0005-4555-8424"
+title: "dem-terrain-indices-app"
+url: "https://github.com/maple60/dem-terrain-indices-app"
