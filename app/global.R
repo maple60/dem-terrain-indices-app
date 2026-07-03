@@ -44,6 +44,106 @@ check_packages <- function(packages) {
   }
 }
 
+is_connect_cloud <- function() {
+  identical(Sys.getenv("R_CONFIG_ACTIVE"), "connect_cloud") ||
+    identical(Sys.getenv("QUARTO_PROFILE"), "connect_cloud")
+}
+
+whitebox_runtime_dir <- function() {
+  configured_dir <- Sys.getenv("WHITEBOXTOOLS_DIR", unset = "")
+  if (nzchar(configured_dir)) {
+    return(configured_dir)
+  }
+
+  file.path(tempdir(), "whitebox")
+}
+
+whitebox_platform <- function() {
+  platform <- Sys.getenv("WHITEBOXTOOLS_PLATFORM", unset = "")
+  if (nzchar(platform)) {
+    return(platform)
+  }
+
+  # Connect Cloud runs on Ubuntu 22.04, matching the glibc Linux binary.
+  "linux_amd64"
+}
+
+find_whitebox_executable <- function(path) {
+  candidates <- list.files(
+    path,
+    pattern = "^whitebox_tools(\\.exe)?$",
+    recursive = TRUE,
+    full.names = TRUE
+  )
+  if (length(candidates) == 0) {
+    return("")
+  }
+
+  normalizePath(candidates[1], winslash = "/", mustWork = FALSE)
+}
+
+initialize_whitebox <- function(install_if_missing = is_connect_cloud()) {
+  check_packages("whitebox")
+
+  if (isTRUE(whitebox::check_whitebox_binary())) {
+    whitebox::wbt_init(verbose = FALSE)
+    return(invisible(TRUE))
+  }
+
+  if (!isTRUE(install_if_missing)) {
+    stop(
+      "WhiteboxTools executable was not found. ",
+      "Run whitebox::install_whitebox() once, or set R_WHITEBOX_EXE_PATH.",
+      call. = FALSE
+    )
+  }
+
+  install_dir <- whitebox_runtime_dir()
+  dir.create(install_dir, recursive = TRUE, showWarnings = FALSE)
+
+  setup_error <- tryCatch(
+    {
+      whitebox::install_whitebox(
+        pkg_dir = install_dir,
+        platform = whitebox_platform()
+      )
+
+      exe_path <- find_whitebox_executable(install_dir)
+      if (!nzchar(exe_path) || !file.exists(exe_path)) {
+        stop(
+          "installed executable was not found under ",
+          normalizePath(install_dir, winslash = "/", mustWork = FALSE),
+          call. = FALSE
+        )
+      }
+
+      Sys.chmod(exe_path, mode = "0755")
+      whitebox::wbt_init(exe_path = exe_path, verbose = FALSE)
+      if (!isTRUE(whitebox::check_whitebox_binary())) {
+        stop(
+          "installed executable could not be initialized: ",
+          exe_path,
+          call. = FALSE
+        )
+      }
+      NULL
+    },
+    error = function(e) e
+  )
+
+  if (!is.null(setup_error)) {
+    stop(
+      "WhiteboxTools executable was not found, and automatic setup failed. ",
+      "On Posit Connect Cloud this app downloads the Linux WhiteboxTools ",
+      "binary at startup. Error: ",
+      conditionMessage(setup_error),
+      call. = FALSE
+    )
+  }
+
+  invisible(TRUE)
+}
+
 downsample_raster_for_leaflet <- function(
   r,
   max_cells = leaflet_preview_max_cells
@@ -890,13 +990,7 @@ validate_dem <- function(dem, require_projected = TRUE) {
 }
 
 check_whitebox <- function() {
-  if (!whitebox::check_whitebox_binary()) {
-    stop(
-      "WhiteboxTools executable was not found. ",
-      "Run whitebox::install_whitebox() once, then rerun this app.",
-      call. = FALSE
-    )
-  }
+  initialize_whitebox()
   invisible(TRUE)
 }
 
