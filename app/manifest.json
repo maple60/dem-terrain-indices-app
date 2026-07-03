@@ -173,8 +173,8 @@
       "description": {
         "Package": "Rcpp",
         "Title": "Seamless R and C++ Integration",
-        "Version": "1.1.1",
-        "Date": "2026-01-07",
+        "Version": "1.1.1-1.1",
+        "Date": "2026-04-19",
         "Authors@R": "c(person(\"Dirk\", \"Eddelbuettel\", role = c(\"aut\", \"cre\"), email = \"edd@debian.org\",\n                    comment = c(ORCID = \"0000-0001-6419-907X\")),\n             person(\"Romain\", \"Francois\", role = \"aut\",\n                    comment = c(ORCID = \"0000-0002-2444-4226\")),\n             person(\"JJ\", \"Allaire\", role = \"aut\",\n                    comment = c(ORCID = \"0000-0003-0174-9868\")),\n             person(\"Kevin\", \"Ushey\", role = \"aut\",\n                    comment = c(ORCID = \"0000-0003-2880-7407\")),\n             person(\"Qiang\", \"Kou\", role = \"aut\",\n                    comment = c(ORCID = \"0000-0001-6786-5453\")),\n             person(\"Nathan\", \"Russell\", role = \"aut\"),\n             person(\"Iñaki\", \"Ucar\", role = \"aut\",\n                    comment = c(ORCID = \"0000-0001-6403-5550\")),\n             person(\"Doug\", \"Bates\", role = \"aut\",\n                    comment = c(ORCID = \"0000-0001-8316-9503\")),\n             person(\"John\", \"Chambers\", role = \"aut\"))",
         "Description": "The 'Rcpp' package provides R functions as well as C++ classes which\n offer a seamless integration of R and C++. Many R data types and objects can be\n mapped back and forth to C++ equivalents which facilitates both writing of new\n code as well as easier integration of third-party libraries. Documentation\n about 'Rcpp' is provided by several vignettes included in this package, via the\n 'Rcpp Gallery' site at <https://gallery.rcpp.org>, the paper by Eddelbuettel and\n Francois (2011, <doi:10.18637/jss.v040.i08>), the book by Eddelbuettel (2013,\n <doi:10.1007/978-1-4614-6868-4>) and the paper by Eddelbuettel and Balamuta (2018,\n <doi:10.1080/00031305.2017.1375990>); see 'citation(\"Rcpp\")' for details.",
         "Depends": "R (>= 3.5.0)",
@@ -188,20 +188,13 @@
         "Encoding": "UTF-8",
         "VignetteBuilder": "Rcpp",
         "NeedsCompilation": "yes",
-        "Packaged": "2026-01-08 14:33:45 UTC; edd",
+        "Packaged": "2026-04-23 14:12:31 UTC; edd",
         "Author": "Dirk Eddelbuettel [aut, cre] (ORCID:\n    <https://orcid.org/0000-0001-6419-907X>),\n  Romain Francois [aut] (ORCID: <https://orcid.org/0000-0002-2444-4226>),\n  JJ Allaire [aut] (ORCID: <https://orcid.org/0000-0003-0174-9868>),\n  Kevin Ushey [aut] (ORCID: <https://orcid.org/0000-0003-2880-7407>),\n  Qiang Kou [aut] (ORCID: <https://orcid.org/0000-0001-6786-5453>),\n  Nathan Russell [aut],\n  Iñaki Ucar [aut] (ORCID: <https://orcid.org/0000-0001-6403-5550>),\n  Doug Bates [aut] (ORCID: <https://orcid.org/0000-0001-8316-9503>),\n  John Chambers [aut]",
         "Maintainer": "Dirk Eddelbuettel <edd@debian.org>",
         "Repository": "CRAN",
-        "Date/Publication": "2026-01-10 09:50:02 UTC",
-        "Built": "R 4.5.3; x86_64-w64-mingw32; 2026-03-28 18:48:23 UTC; windows",
-        "Archs": "x64",
-        "RemoteType": "standard",
-        "RemoteRef": "Rcpp",
-        "RemotePkgRef": "Rcpp",
-        "RemoteRepos": "https://cran.rstudio.com",
-        "RemoteReposName": "CRAN",
-        "RemotePkgPlatform": "x86_64-w64-mingw32",
-        "RemoteSha": "1.1.1"
+        "Date/Publication": "2026-04-24 05:30:02 UTC",
+        "Built": "R 4.5.3; x86_64-w64-mingw32; 2026-07-03 02:47:37 UTC; windows",
+        "Archs": "x64"
       }
     },
     "base64enc": {
@@ -1908,10 +1901,10 @@
         "Package": "terra",
         "Type": "Package",
         "Title": "Spatial Data Analysis",
-        "Version": "1.9-34",
-        "Date": "2026-06-18",
+        "Version": "1.9-27",
+        "Date": "2026-05-09",
         "Depends": "R (>= 3.5.0), methods",
-        "Suggests": "parallel, tinytest, ncdf4, sf (>= 0.9-8), igraph, deldir,\nXML, leaflet (>= 2.2.1), htmlwidgets, future, future.apply",
+        "Suggests": "parallel, tinytest, ncdf4, sf (>= 0.9-8), deldir, XML,\nleaflet (>= 2.2.1), htmlwidgets, future, future.apply",
         "LinkingTo": "Rcpp",
         "Imports": "Rcpp (>= 1.0-10)",
         "SystemRequirements": "C++17, GDAL (>= 2.2.3), GEOS (>= 3.4.0), PROJ (>=\n4.9.3), TBB, sqlite3",
@@ -1925,10 +1918,10 @@
         "LazyLoad": "yes",
         "Authors@R": "c(\n\tperson(\"Robert J.\", \"Hijmans\", role=c(\"cre\", \"aut\"),  \n\t\t\temail=\"r.hijmans@gmail.com\", comment=c(ORCID=\"0000-0001-5872-2872\")),\t\t\t\n    person(\"Andrew\", \"Brown\", role=\"aut\", comment=c(ORCID=\"0000-0002-4565-533X\")),\n    person(\"Márcia\", \"Barbosa\", role=\"aut\", comment=c(ORCID=\"0000-0001-8972-7713\")),\n    person(\"Krzysztof\", \"Dyba\", role=\"ctb\", comment=c(ORCID=\"0000-0002-8614-3816\")),\n    person(\"Roger\", \"Bivand\", role=\"ctb\", comment=c(ORCID=\"0000-0003-2392-6140\")),\n    person(\"Michael\", \"Chirico\", role=\"ctb\", comment=c(ORCID=\"0000-0003-0787-087X\")),\n    person(\"Emanuele\", \"Cordano\", role=\"ctb\",comment=c(ORCID=\"0000-0002-3508-5898\")),\n    person(\"Edzer\", \"Pebesma\", role=\"ctb\", comment=c(ORCID=\"0000-0001-8049-7069\")),\n    person(\"Barry\", \"Rowlingson\", role=\"ctb\", comment=c(ORCID=\"0000-0002-8586-6625\")),\n    person(\"Michael D.\", \"Sumner\", role=\"ctb\", comment=c(ORCID=\"0000-0002-2471-7511\")))",
         "NeedsCompilation": "yes",
-        "Packaged": "2026-06-19 03:43:47 UTC; rhijm",
+        "Packaged": "2026-05-09 12:25:47 UTC; rhijm",
         "Author": "Robert J. Hijmans [cre, aut] (ORCID:\n    <https://orcid.org/0000-0001-5872-2872>),\n  Andrew Brown [aut] (ORCID: <https://orcid.org/0000-0002-4565-533X>),\n  Márcia Barbosa [aut] (ORCID: <https://orcid.org/0000-0001-8972-7713>),\n  Krzysztof Dyba [ctb] (ORCID: <https://orcid.org/0000-0002-8614-3816>),\n  Roger Bivand [ctb] (ORCID: <https://orcid.org/0000-0003-2392-6140>),\n  Michael Chirico [ctb] (ORCID: <https://orcid.org/0000-0003-0787-087X>),\n  Emanuele Cordano [ctb] (ORCID: <https://orcid.org/0000-0002-3508-5898>),\n  Edzer Pebesma [ctb] (ORCID: <https://orcid.org/0000-0001-8049-7069>),\n  Barry Rowlingson [ctb] (ORCID: <https://orcid.org/0000-0002-8586-6625>),\n  Michael D. Sumner [ctb] (ORCID:\n    <https://orcid.org/0000-0002-2471-7511>)",
         "Repository": "CRAN",
-        "Date/Publication": "2026-06-19 15:10:02 UTC",
+        "Date/Publication": "2026-05-10 05:10:02 UTC",
         "Built": "R 4.5.3; x86_64-w64-mingw32; 2026-06-29 01:39:09 UTC; windows",
         "Archs": "x64",
         "RemoteType": "standard",
@@ -1937,7 +1930,7 @@
         "RemoteRepos": "https://cran.rstudio.com",
         "RemoteReposName": "CRAN",
         "RemotePkgPlatform": "x86_64-w64-mingw32",
-        "RemoteSha": "1.9-34"
+        "RemoteSha": "1.9-27"
       }
     },
     "tinytex": {
