@@ -1,40 +1,45 @@
 library(shiny)
 library(leaflet)
 
-# Allow users to upload DEM files up to 1 GB.
+# DEM GeoTIFFのアップロード上限を1 GBに設定します。
 options(shiny.maxRequestSize = 1024 * 1024^2)
 
-# Packages used by the terrain-index workflow and interactive map previews.
+# 地形指標計算とインタラクティブ地図表示で使うパッケージです。
 required_packages <- c("terra", "whitebox", "leaflet")
 
-# Keep interactive map rasters small enough for quick browser rendering. The
-# analysis rasters are left unchanged; this limit is only for preview layers.
+# Leafletプレビューだけを軽くするためのセル数上限です。
+# 解析用ラスターそのものは縮小しません。
 leaflet_preview_max_cells <- 250000
 
+# DEMやTWIの連続値表示に使うViridis系の色を返します。
 viridis_colors <- function(n = 256) {
   grDevices::hcl.colors(n, palette = "Viridis")
 }
 
+# TPI表示用の色を返します。現在はTWIと同じ色を使います。
 tpi_colors <- function(n = 256) {
   viridis_colors(n)
 }
 
-# Values are WhiteboxTools method identifiers; names are displayed in the UI.
+# 値はWhiteboxToolsのメソッドID、名前はUI表示用ラベルです。
 algorithm_choices <- c(
   "D8" = "d8",
   "D-infinity" = "dinf",
   "FD8" = "fd8"
 )
 
+# メソッドIDから、ユーザーに見せるアルゴリズム名を返します。
 algorithm_labels <- function(methods) {
   labels <- names(algorithm_choices)[match(methods, algorithm_choices)]
   unname(labels)
 }
 
+# selectInputなどに渡しやすい、表示名付きの選択肢を作ります。
 algorithm_select_choices <- function(methods) {
   stats::setNames(methods, algorithm_labels(methods))
 }
 
+# 必須パッケージが使えるか確認し、不足があれば早めに停止します。
 check_packages <- function(packages) {
   missing <- packages[
     !vapply(packages, requireNamespace, logical(1), quietly = TRUE)
@@ -48,11 +53,13 @@ check_packages <- function(packages) {
   }
 }
 
+# Posit Connect Cloud向けの設定で起動しているかを環境変数から判定します。
 is_connect_cloud <- function() {
   identical(Sys.getenv("R_CONFIG_ACTIVE"), "connect_cloud") ||
     identical(Sys.getenv("QUARTO_PROFILE"), "connect_cloud")
 }
 
+# WhiteboxToolsを自動配置するディレクトリを決めます。
 whitebox_runtime_dir <- function() {
   configured_dir <- Sys.getenv("WHITEBOXTOOLS_DIR", unset = "")
   if (nzchar(configured_dir)) {
@@ -62,16 +69,18 @@ whitebox_runtime_dir <- function() {
   file.path(tempdir(), "whitebox")
 }
 
+# WhiteboxToolsのダウンロード対象プラットフォームを決めます。
 whitebox_platform <- function() {
   platform <- Sys.getenv("WHITEBOXTOOLS_PLATFORM", unset = "")
   if (nzchar(platform)) {
     return(platform)
   }
 
-  # Connect Cloud runs on Ubuntu 22.04, matching the glibc Linux binary.
+  # Connect CloudはUbuntu 22.04なので、glibc版Linuxバイナリを既定にします。
   "linux_amd64"
 }
 
+# 指定ディレクトリ内からWhiteboxTools本体を探し、見つからなければ空文字を返します。
 find_whitebox_executable <- function(path) {
   candidates <- list.files(
     path,
@@ -86,6 +95,7 @@ find_whitebox_executable <- function(path) {
   normalizePath(candidates[1], winslash = "/", mustWork = FALSE)
 }
 
+# WhiteboxTools本体を初期化します。必要な環境では自動インストールも試します。
 initialize_whitebox <- function(install_if_missing = is_connect_cloud()) {
   check_packages("whitebox")
 
@@ -148,6 +158,7 @@ initialize_whitebox <- function(install_if_missing = is_connect_cloud()) {
   invisible(TRUE)
 }
 
+# Leafletで扱いやすいサイズまで表示用ラスターだけを間引きます。
 downsample_raster_for_leaflet <- function(
   r,
   max_cells = leaflet_preview_max_cells
@@ -161,6 +172,7 @@ downsample_raster_for_leaflet <- function(
   terra::aggregate(r, fact = aggregate_factor, fun = mean, na.rm = TRUE)
 }
 
+# 色スケール用の値範囲を、有限な2値になるよう補正します。
 normalize_value_range <- function(value_range) {
   if (length(value_range) != 2 || any(!is.finite(value_range))) {
     return(c(0, 1))
@@ -173,6 +185,7 @@ normalize_value_range <- function(value_range) {
   value_range
 }
 
+# TPIなど正負を比較したい値向けに、0を中心にした対称範囲を返します。
 symmetric_value_range <- function(value_range) {
   value_range <- normalize_value_range(value_range)
   limit <- max(abs(value_range), na.rm = TRUE)
@@ -183,6 +196,7 @@ symmetric_value_range <- function(value_range) {
   c(-limit, limit)
 }
 
+# 1つのラスターから、NAを除いた最小値と最大値を返します。
 raster_value_range <- function(r) {
   value_range <- tryCatch(
     as.numeric(terra::global(r, range, na.rm = TRUE)[1, ]),
@@ -192,6 +206,7 @@ raster_value_range <- function(r) {
   normalize_value_range(value_range)
 }
 
+# 複数ラスターを同じ色スケールで表示するため、全体の最小・最大を返します。
 raster_paths_value_range <- function(paths) {
   if (length(paths) == 0) {
     return(c(0, 1))
@@ -216,6 +231,7 @@ raster_paths_value_range <- function(paths) {
   normalize_value_range(c(min(mins), max(maxs)))
 }
 
+# TPIの近傍サイズが3以上の奇数セル数かを検証し、整数にそろえます。
 tpi_window_cells <- function(window_cells) {
   window_cells <- suppressWarnings(as.numeric(window_cells[1]))
   if (
@@ -230,6 +246,7 @@ tpi_window_cells <- function(window_cells) {
   as.integer(window_cells)
 }
 
+# ラスターの値範囲、四分位数、NAセル数を計算します。
 raster_statistics <- function(path) {
   r <- terra::rast(path)
 
@@ -274,6 +291,7 @@ raster_statistics <- function(path) {
   )
 }
 
+# TPI結果を、結果統計タブで表示しやすい表にします。
 tpi_statistics_table <- function(tpi_result) {
   if (is.null(tpi_result) || is.null(tpi_result$tpi)) {
     return(data.frame())
@@ -294,6 +312,7 @@ tpi_statistics_table <- function(tpi_result) {
   )
 }
 
+# 各TWIアルゴリズムの統計値を1つの表にまとめます。
 twi_statistics_table <- function(results) {
   if (length(results) == 0) {
     return(data.frame())
@@ -320,6 +339,7 @@ twi_statistics_table <- function(results) {
   table
 }
 
+# TWIとTPIの統計表を結合し、画面表示用の共通形式に整えます。
 terrain_statistics_table <- function(result) {
   rows <- list()
 
@@ -359,6 +379,7 @@ terrain_statistics_table <- function(result) {
   table
 }
 
+# 結果プレビューのselectInputに渡す、TWI/TPIの選択肢を作ります。
 result_preview_choices <- function(result) {
   choices <- stats::setNames(
     paste0("twi:", names(result$algorithms)),
@@ -372,6 +393,7 @@ result_preview_choices <- function(result) {
   choices
 }
 
+# TPIの近傍サイズを含む、結果表示用ラベルを作ります。
 tpi_result_label <- function(tpi_result) {
   paste0(
     "TPI (",
@@ -382,6 +404,7 @@ tpi_result_label <- function(tpi_result) {
   )
 }
 
+# ZIP保存対象を選ぶcheckboxGroupInput用の選択肢を作ります。
 download_result_choices <- function(result) {
   choices <- stats::setNames(
     names(result$algorithms),
@@ -395,6 +418,7 @@ download_result_choices <- function(result) {
   choices
 }
 
+# ファイル名やフォルダ名に使いやすい英数字中心の文字列へ変換します。
 safe_file_stem <- function(x) {
   x <- tolower(gsub("[^A-Za-z0-9]+", "_", as.character(x)))
   x <- gsub("^_+|_+$", "", x)
@@ -405,6 +429,7 @@ safe_file_stem <- function(x) {
   x
 }
 
+# 計算条件を書き出すため、値をCSV向けの文字列に変換します。
 format_condition_value <- function(x) {
   if (is.null(x) || length(x) == 0) {
     return("")
@@ -421,6 +446,7 @@ format_condition_value <- function(x) {
   paste(as.character(x), collapse = ", ")
 }
 
+# ダウンロードZIPに含める計算条件メタデータの表を作ります。
 result_conditions_table <- function(result, selected_methods) {
   parameters <- result$parameters
   if (is.null(parameters)) {
@@ -469,6 +495,7 @@ result_conditions_table <- function(result, selected_methods) {
   )
 }
 
+# 結果ファイルをZIP作成用フォルダへコピーし、コピー記録を返します。
 copy_bundle_file <- function(source_path, bundle_dir, relative_path) {
   if (is.null(source_path) || !file.exists(source_path)) {
     stop("Result file was not found: ", source_path, call. = FALSE)
@@ -488,6 +515,7 @@ copy_bundle_file <- function(source_path, bundle_dir, relative_path) {
   )
 }
 
+# 選択されたTWI/TPI結果、共有ラスター、メタデータをZIPにまとめます。
 create_twi_results_zip <- function(result, selections, zipfile) {
   methods <- intersect(selections, names(result$algorithms))
   include_tpi <- "tpi" %in% selections &&
@@ -528,6 +556,7 @@ create_twi_results_zip <- function(result, selections, zipfile) {
   )
 
   file_records <- list()
+  # ZIP内に入れたファイルの種類と対応する元パスを記録します。
   add_record <- function(record, file_type, method = "", algorithm = "") {
     record$file_type <- file_type
     record$method <- method
@@ -617,6 +646,7 @@ create_twi_results_zip <- function(result, selections, zipfile) {
   invisible(zipfile)
 }
 
+# ラスターの外接範囲をLeafletで使う経緯度範囲に変換します。
 raster_lonlat_bounds <- function(r) {
   ext <- terra::ext(r)
   corners <- data.frame(
@@ -637,6 +667,7 @@ raster_lonlat_bounds <- function(r) {
   )
 }
 
+# Leaflet地図に、DEM範囲へ戻るためのリセットボタンを追加します。
 add_reset_view_control <- function(map, bounds) {
   js <- sprintf(
     paste(
@@ -682,12 +713,14 @@ add_reset_view_control <- function(map, bounds) {
   htmlwidgets::onRender(map, js)
 }
 
+# DEMから簡易的な陰影起伏ラスターを作り、地図の重ね合わせに使います。
 hillshade_raster <- function(r) {
   slope <- terra::terrain(r, v = "slope", unit = "radians")
   aspect <- terra::terrain(r, v = "aspect", unit = "radians")
   terra::shade(slope, aspect, angle = 40, direction = 315)
 }
 
+# OSM・航空写真・陰影起伏・主題ラスターを重ねたLeaflet地図を作ります。
 leaflet_layered_raster_map <- function(
   r,
   title,
@@ -789,6 +822,7 @@ leaflet_layered_raster_map <- function(
   map
 }
 
+# TWI/TPIなどの結果ラスターをLeaflet地図として表示します。
 leaflet_raster_map <- function(
   r,
   title,
@@ -807,6 +841,7 @@ leaflet_raster_map <- function(
   )
 }
 
+# DEMプレビュー用に、透明度を少し下げたLeaflet地図を作ります。
 leaflet_dem_map <- function(r) {
   leaflet_layered_raster_map(
     r,
@@ -818,6 +853,7 @@ leaflet_dem_map <- function(r) {
   )
 }
 
+# Shinyが受け取ったアップロードファイルを作業フォルダへコピーします。
 copy_uploaded_dem <- function(upload, work_dir) {
   ext <- tolower(tools::file_ext(upload$name))
   if (!ext %in% c("tif", "tiff")) {
@@ -832,6 +868,7 @@ copy_uploaded_dem <- function(upload, work_dir) {
   target
 }
 
+# Whiteboxパッケージ付属のサンプルDEMを作業フォルダへコピーします。
 copy_sample_dem <- function(work_dir) {
   check_packages(c("terra", "whitebox"))
 
@@ -853,6 +890,7 @@ copy_sample_dem <- function(work_dir) {
   target
 }
 
+# DEMのCRS名を、可能なら読みやすい名称として返します。
 crs_name <- function(dem) {
   crs_text <- terra::crs(dem, describe = TRUE)
   crs_label <- NA_character_
@@ -867,9 +905,9 @@ crs_name <- function(dem) {
   terra::crs(dem)
 }
 
+# DEMの座標単位を、UIで理解しやすい短い表記にします。
 crs_unit_label <- function(dem) {
-  # TWI depends on distance and area. A geographic CRS is therefore shown as
-  # degree-based even when the full WKT text is too detailed for the UI.
+  # TWIは距離と面積に依存するため、地理座標系はWKT全文ではなくdegreeとして示します。
   if (isTRUE(terra::is.lonlat(dem))) {
     return("degree")
   }
@@ -882,10 +920,9 @@ crs_unit_label <- function(dem) {
   "projected CRS unit"
 }
 
+# DEMの中心点を経緯度に変換し、投影候補の判定に使います。
 dem_center_lonlat <- function(dem) {
-  # Candidate CRS selection uses the DEM centre in lon/lat. Projected DEMs are
-  # transformed only for this metadata calculation; the analysis raster is not
-  # changed here.
+  # ここで変換するのは中心点だけで、解析用DEM本体は変更しません。
   ext <- terra::ext(dem)
   center <- data.frame(
     x = mean(c(ext[1], ext[2])),
@@ -901,10 +938,10 @@ dem_center_lonlat <- function(dem) {
   c(lon = unname(coords[1, 1]), lat = unname(coords[1, 2]))
 }
 
+# JGD2011平面直角座標系の区域、EPSG、原点をアプリ内の参照表として返します。
 jgd2011_zone_table <- function() {
-  # JGD2011 plane rectangular CS EPSG codes are consecutive:
-  # zone I is EPSG:6669 and zone XIX is EPSG:6687. The origin and area table is
-  # kept in the app so users can verify the suggested zone before reprojecting.
+  # JGD2011平面直角座標系のEPSGはI系の6669からXIX系の6687まで連続します。
+  # 投影変換前に、推奨区域が対象地域に合っているか確認できるようにしています。
   data.frame(
     zone = c(
       "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X",
@@ -945,15 +982,16 @@ jgd2011_zone_table <- function() {
   )
 }
 
+# 経緯度と平面直角座標系原点の近さを、簡易距離で比較します。
 lonlat_distance_km <- function(lon, lat, origin_lon, origin_lat) {
-  # Equirectangular distance is sufficient for ranking nearby plane-rectangular
-  # zone origins. The selected candidate is a guide, not an automatic decision.
+  # 正距円筒近似の距離で十分です。候補は自動決定ではなく確認用の目安です。
   radians <- pi / 180
   x <- (origin_lon - lon) * cos((lat + origin_lat) * radians / 2)
   y <- origin_lat - lat
   111.32 * sqrt(x^2 + y^2)
 }
 
+# DEM中心に最も近いJGD2011平面直角座標系の区域を返します。
 nearest_jgd2011_zone <- function(lon, lat) {
   zones <- jgd2011_zone_table()
   zones$distance_km <- lonlat_distance_km(
@@ -965,6 +1003,7 @@ nearest_jgd2011_zone <- function(lon, lat) {
   zones[which.min(zones$distance_km), , drop = FALSE]
 }
 
+# 経度と緯度から、WGS 84 UTMの候補EPSGを機械的に作ります。
 utm_candidate <- function(lon, lat) {
   zone <- floor((lon + 180) / 6) + 1
   zone <- max(1, min(60, zone))
@@ -978,6 +1017,7 @@ utm_candidate <- function(lon, lat) {
   )
 }
 
+# DEMのCRSに応じて、計算に使いやすい投影座標系候補を返します。
 crs_recommendations <- function(dem) {
   if (!isTRUE(terra::is.lonlat(dem))) {
     return(data.frame(
@@ -1012,6 +1052,7 @@ crs_recommendations <- function(dem) {
   )
 }
 
+# 推奨候補の先頭EPSGを、投影変換入力欄の初期値として返します。
 default_target_epsg <- function(dem) {
   recommendations <- crs_recommendations(dem)
   if (nrow(recommendations) == 0 || !nzchar(recommendations$epsg[1])) {
@@ -1021,6 +1062,7 @@ default_target_epsg <- function(dem) {
   as.character(recommendations$epsg[1])
 }
 
+# ユーザー入力のEPSGコードを検証し、terra::project用のEPSG表記に整えます。
 normalize_epsg <- function(epsg) {
   epsg <- trimws(as.character(epsg))
   epsg <- sub("^EPSG:", "", epsg, ignore.case = TRUE)
@@ -1031,10 +1073,10 @@ normalize_epsg <- function(epsg) {
   paste0("EPSG:", epsg)
 }
 
+# DEMを指定EPSGへ投影変換し、GeoTIFFとして書き出します。
 project_dem_to_epsg <- function(dem, target_epsg, output_path) {
-  # DEM is continuous elevation data, so bilinear interpolation is the least
-  # surprising default for reprojection. Users explicitly opt in before this
-  # function is called.
+  # DEMは連続値の標高データなので、投影変換にはbilinear補間を使います。
+  # この関数は、ユーザーが明示的に投影変換を選んだ場合だけ呼ばれます。
   target_crs <- normalize_epsg(target_epsg)
   terra::project(
     dem,
@@ -1046,6 +1088,7 @@ project_dem_to_epsg <- function(dem, target_epsg, output_path) {
   output_path
 }
 
+# DEMプレビュータブに出す、行列サイズ・範囲・解像度・CRSの表を作ります。
 dem_metadata <- function(dem) {
   ext <- terra::ext(dem)
   res <- terra::res(dem)
@@ -1085,6 +1128,7 @@ dem_metadata <- function(dem) {
   )
 }
 
+# CRS確認タブに出す、座標系とDEM中心位置の表を作ります。
 crs_detail_table <- function(dem) {
   center <- dem_center_lonlat(dem)
   res <- terra::res(dem)
@@ -1121,6 +1165,7 @@ crs_detail_table <- function(dem) {
   )
 }
 
+# DEMが1バンドでCRSを持ち、必要なら投影座標系であることを確認します。
 validate_dem <- function(dem, require_projected = TRUE) {
   if (terra::nlyr(dem) != 1) {
     stop("DEM must have exactly one raster layer.", call. = FALSE)
@@ -1139,11 +1184,13 @@ validate_dem <- function(dem, require_projected = TRUE) {
   invisible(TRUE)
 }
 
+# WhiteboxToolsが実行できる状態かを確認します。
 check_whitebox <- function() {
   initialize_whitebox()
   invisible(TRUE)
 }
 
+# 選択されたアルゴリズムに応じて、WhiteboxToolsの流量蓄積コマンドを呼び分けます。
 run_flow_accumulation <- function(method, breached_path, output_path) {
   if (method == "d8") {
     whitebox::wbt_d8_flow_accumulation(
@@ -1171,6 +1218,7 @@ run_flow_accumulation <- function(method, breached_path, output_path) {
   }
 }
 
+# DEMと近傍平均との差を取り、TPIラスターを書き出します。
 write_tpi_raster <- function(dem_path, output_path, window_cells) {
   window_cells <- tpi_window_cells(window_cells)
   dem <- terra::rast(dem_path)
@@ -1194,6 +1242,7 @@ write_tpi_raster <- function(dem_path, output_path, window_cells) {
   output_path
 }
 
+# DEMからTPI、breach済みDEM、傾斜、各アルゴリズムのTWIをまとめて計算します。
 run_twi_workflow <- function(
   dem_path,
   algorithms,
@@ -1215,6 +1264,7 @@ run_twi_workflow <- function(
 
   analysis_dem_path <- dem_path
   target_epsg_normalized <- ""
+  # 投影変換が有効な場合だけ、解析用DEMを別ファイルとして作ります。
   if (isTRUE(project_dem)) {
     projected_path <- file.path(output_dir, "dem_projected.tif")
     target_epsg_normalized <- normalize_epsg(target_epsg)
@@ -1235,11 +1285,11 @@ run_twi_workflow <- function(
   slope_path <- file.path(output_dir, "dem_breached_slope.tif")
   tpi_path <- file.path(output_dir, paste0("tpi_", tpi_window, "cells.tif"))
 
+  # TPIはWhiteboxToolsに依存せず、解析用DEMから先に計算します。
   progress(paste0("TPI: ", tpi_window, "x", tpi_window, "セル"))
   write_tpi_raster(analysis_dem_path, tpi_path, tpi_window)
 
-  # WhiteboxTools first removes depressions, then derives slope and flow
-  # accumulation rasters used by the wetness index calculation.
+  # WhiteboxToolsで凹地処理、傾斜、流量蓄積を順に作り、TWI計算に渡します。
   progress("Depression breaching")
   whitebox::wbt_breach_depressions_least_cost(
     dem = analysis_dem_path,
@@ -1256,6 +1306,7 @@ run_twi_workflow <- function(
   )
 
   results <- list()
+  # 選択された各流量蓄積アルゴリズムごとにTWIを作成します。
   for (method in algorithms) {
     accum_path <- file.path(
       output_dir,
@@ -1280,6 +1331,7 @@ run_twi_workflow <- function(
     )
   }
 
+  # UI表示、統計表、ダウンロードZIPで再利用する情報をまとめて返します。
   list(
     input_dem = dem_path,
     analysis_dem = analysis_dem_path,

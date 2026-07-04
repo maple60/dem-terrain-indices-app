@@ -1,6 +1,7 @@
-# UI-only definitions live here. Keep reactive logic in server.R and shared
-# calculation code in global.R.
+# UIだけを定義するファイルです。
+# 入力値への反応はserver.R、計算や地図表示の共通処理はglobal.Rに置きます。
 ui <- shiny::fluidPage(
+  # 画面全体の余白、背景、表・プロットの見た目をまとめて調整します。
   shiny::tags$head(
     shiny::tags$style(shiny::HTML(
       "
@@ -16,6 +17,7 @@ ui <- shiny::fluidPage(
   shiny::titlePanel("TWI/TPI計算"),
   shiny::sidebarLayout(
     shiny::sidebarPanel(
+      # DEMの入力方法を、アップロードとWhiteboxのサンプルDEMから選びます。
       shiny::radioButtons(
         "dem_source",
         "DEM入力",
@@ -25,6 +27,7 @@ ui <- shiny::fluidPage(
         ),
         selected = "upload"
       ),
+      # アップロードを選んだ場合だけ、GeoTIFFの選択欄を表示します。
       shiny::conditionalPanel(
         "input.dem_source == 'upload'",
         shiny::fileInput(
@@ -33,12 +36,14 @@ ui <- shiny::fluidPage(
           accept = c(".tif", ".tiff")
         )
       ),
+      # TWI計算で使う流量蓄積アルゴリズムを複数選択できるようにします。
       shiny::checkboxGroupInput(
         "algorithms",
         "TWI流量蓄積アルゴリズム",
         choices = algorithm_choices,
         selected = c("d8", "dinf")
       ),
+      # TPIは中心セルを除いた近傍平均との差で計算するため、奇数セル数を受け取ります。
       shiny::numericInput(
         "tpi_window_cells",
         "TPI近傍サイズ（セル、奇数）",
@@ -46,6 +51,7 @@ ui <- shiny::fluidPage(
         min = 3,
         step = 2
       ),
+      # WhiteboxToolsのdepression breachingで使う探索距離とfill指定です。
       shiny::numericInput(
         "breach_dist",
         "Breach距離",
@@ -59,6 +65,7 @@ ui <- shiny::fluidPage(
         value = TRUE
       ),
       shiny::hr(),
+      # 緯度経度DEMなどを使う場合、計算前に投影座標系へ変換する任意設定です。
       shiny::checkboxInput(
         "project_dem",
         "TWI/TPI計算前に投影変換する",
@@ -78,7 +85,7 @@ ui <- shiny::fluidPage(
     ),
     shiny::mainPanel(
       shiny::tabsetPanel(
-        # DEMプレビュータブの内容を追加 ---
+        # 入力DEMを静的プロットまたはLeaflet地図で確認します。
         shiny::tabPanel(
           "DEMプレビュー",
           shiny::br(),
@@ -103,7 +110,7 @@ ui <- shiny::fluidPage(
           shiny::tableOutput("dem_info")
         ),
 
-        # CRS確認タブの内容を追加 ---
+        # CRS情報と、地理座標系DEM向けの投影候補を確認します。
         shiny::tabPanel(
           "CRS確認",
           shiny::br(),
@@ -127,7 +134,7 @@ ui <- shiny::fluidPage(
           )
         ),
 
-        # 結果タブの内容を追加 ---
+        # 計算後のTWI/TPI表示、統計、ダウンロード対象の選択をまとめます。
         shiny::tabPanel(
           "結果",
           shiny::br(),
@@ -175,14 +182,14 @@ ui <- shiny::fluidPage(
           shiny::tableOutput("twi_stats")
         ),
 
-        # ログタブの内容を追加 ---
+        # DEM読み込みや計算の進行状況を時刻付きで表示します。
         shiny::tabPanel(
           "ログ",
           shiny::br(),
           shiny::verbatimTextOutput("status")
         ),
 
-        # その他の情報タブの内容を追加 ---
+        # リポジトリと関連ノートブックへの参照を置きます。
         shiny::tabPanel(
           "About",
           shiny::br(),
